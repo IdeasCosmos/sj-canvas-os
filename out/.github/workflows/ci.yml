@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches: [ "main" ]
+    tags: [ "v*" ]
+  pull_request:
+
+jobs:
+  test-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential python3 zip
+
+      - name: Run tests
+        run: |
+          chmod +x scripts/run_tests.sh || true
+          ./scripts/run_tests.sh
+
+      - name: Build dist
+        run: |
+          chmod +x scripts/build_dist.sh || true
+          ./scripts/build_dist.sh
+
+      - name: Package dist artifact
+        run: |
+          cd dist
+          zip -r ../dist_artifact.zip .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist_artifact
+          path: dist_artifact.zip
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [test-build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download dist artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: dist_artifact
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist_artifact.zip
